@@ -17,17 +17,15 @@ def parse_tr_date(s):
     if not s:
         return None
         
-    # Eğer Excel zaten bir tarih objesi döndürdüyse
     if isinstance(s, (dt.datetime, dt.date)):
         return s.date() if isinstance(s, dt.datetime) else s
 
-    # Excel'deki noktalı formatı (Örn: "9.06.2026") ayrıştır
     parts = str(s).strip().split('.')
     if len(parts) == 3:
         try:
             return dt.date(int(parts[2]), int(parts[1]), int(parts[0]))
         except ValueError:
-            pass # Eğer dönüştürülemezse aşağı devam et, None döner
+            pass 
             
     return None
 
@@ -45,34 +43,33 @@ def get_menu(target_date):
         if not any(row):
             continue
 
-        # Excel sütunlarına göre ilk 5 veriyi al (A:Tarih, B:Çorba, C:Ana, D:Yardımcı1, E:Yardımcı2)
-        veri = list(row)[:5]
-        veri += [None] * (5 - len(veri))
+        # Sütunları tam eşleştir: A:Tarih, B:Gün, C:Çorba, D:Ana Yemek, E:Yardımcı, F:Tatlı
+        veri = list(row)[:6]
+        veri += [None] * (6 - len(veri))
 
-        t, corba, ana, yard1, yard2 = veri
+        # excel_gun değişkeni ile aradaki sütunu yakalayıp menüden ayırıyoruz
+        t, excel_gun, corba, ana, yard, tatli = veri
 
         d = parse_tr_date(t)
         
         if d == target_date:
             label = "Yarın" if SEND_TOMORROW else "Bugün"
             
-            # Gün ismini datetime objesinden Türkçe olarak alıyoruz
             gunler = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
             gun_ismi = gunler[d.weekday()]
 
-            # Boş değerleri ("None") engellemek için string formatlama
             corba_str = str(corba) if corba else "Yok"
             ana_str = str(ana) if ana else "Yok"
-            yard1_str = str(yard1) if yard1 else "Yok"
-            yard2_str = str(yard2) if yard2 else "Yok"
+            yard_str = str(yard) if yard else "Yok"
+            tatli_str = str(tatli) if tatli else "Yok"
 
             return (
                 f"🍽️ BAŞAK TRAKTÖR\n"
                 f"📌 {d.strftime('%d.%m.%Y')} {gun_ismi} - {label} Yemek Menüsü\n"
                 f"🍲 Çorba: {corba_str}\n"
                 f"🍝 Ana Yemek: {ana_str}\n"
-                f"🍖 Yardımcı: {yard1_str}\n"
-                f"🥗 Salata/Tatlı: {yard2_str}"
+                f"🍖 Yardımcı: {yard_str}\n"
+                f"🥗 Salata/Tatlı: {tatli_str}"
             )
 
     return f"❗ {target_date.strftime('%d.%m.%Y')} tarihi için yemek menüsü bulunamadı."
