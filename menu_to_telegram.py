@@ -21,6 +21,12 @@ MONTHS = {
 def parse_tr_date(s):
     if not s:
         return None
+        
+    # Excel hücreyi tarih objesi olarak verirse doğrudan al
+    if isinstance(s, (dt.datetime, dt.date)):
+        return s.date() if isinstance(s, dt.datetime) else s
+
+    # Metin olarak girilmişse parçalayarak al
     parts = str(s).strip().split()
     if len(parts) != 3:
         return None
@@ -40,11 +46,16 @@ def get_menu(target_date):
         return f"❗ Excel dosyası veya sayfası bulunamadı: {e}"
 
     for row in ws.iter_rows(min_row=2, values_only=True):
+        # Satır tamamen boşsa atla (Çalışan koddan ilham alındı)
         if not any(row):
             continue
+
+        # Gelen satırı listeye çevirip ilk 6 elemanını al ve eksikleri tamamla
         veri = list(row)[:6]
         veri += [None] * (6 - len(veri))
+
         t, gun, corba, ana, yard, tatli = veri
+
         d = parse_tr_date(t)
         if d == target_date:
             label = "Yarın" if SEND_TOMORROW else "Bugün"
@@ -56,29 +67,42 @@ def get_menu(target_date):
                 f"🍖 Yardımcı: {yard}\n"
                 f"🍮 Tatlı/Meyve: {tatli}"
             )
+
     return f"❗ Bugün için yemek menüsü bulunamadı."
 
-
-def send_telegram(chat_id, msg):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": msg}
-    response = requests.post(url, json=payload, timeout=10)
-    response.raise_for_status()
-
-
-def main():
-    today = dt.date.today()
-    if today.weekday() >= 5:
-        print("Hafta sonu - mesaj gönderilmedi.")
+def send_telegram(msg, chat_id):
+    if not TOKEN:
+        print("HATA: TELEGRAM_BOT_TOKEN bulunamadı.")
         return
-    target_date = today
-    if SEND_TOMORROW:
-        target_date += dt.timedelta(days=1)
-    menu = get_menu(target_date)
-    send_telegram(CHAT_ID, menu)
-    if not menu.startswith("❗") and GROUP_CHAT_ID != 0:
-        send_telegram(GROUP_CHAT_ID, menu)
-
+        
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    try:
+        # Timeout ve hata yönetimi eklendi
+        r = requests.post(url, json={"chat_id": chat_id, "text": msg}, timeout=20)
+        r.raise_for_status()
+        print(f"Mesaj başarıyla gönderildi (ID: {chat_id})")
+    except Exception as e:
+        print(f"Mesaj gönderilirken hata oluştu (ID: {chat_id}): {e}")
 
 if __name__ == "__main__":
-    main()
+    # GitHub Actions üzerinde Türkiye saatini (UTC+3) zorunlu kıl
+    turkey_tz = dt.timezone(dt.timedelta(hours=3))
+    today = dt.datetime.now(turkey_tz).date()
+    
+    target = today + dt.timedelta(days=1) if SEND_TOMORROW else today
+
+    # Haftasonu: Cumartesi=5, Pazar=6 -> mesaj yok
+    if target.weekday() >= 5:
+        print("Hafta sonu - mesaj gönderilmedi.")
+        raise SystemExit(0)
+
+    msg = get_menu(target)
+    
+    # 1. Admin'e her durumda mesaj gönder (Hata mesajları dahil)
+    send_telegram(msg, CHAT_ID)
+    
+    # 2. Gruba sadece menü başarıyla bulunduysa ve ID 0'dan farklıysa gönder
+    if not msg.startswith("❗") and GROUP_CHAT_ID != 0:
+        send_telegram(msg, GROUP_CHAT_ID)
+    else:
+        print("Hata, tatil günü veya grup ID'si 0 olduğu için gruba mesaj atılmadı.")
