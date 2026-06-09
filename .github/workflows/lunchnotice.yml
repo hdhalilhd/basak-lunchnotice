@@ -1,0 +1,28 @@
+name: BAŞAK Yemek Bildirimi
+
+on:
+  schedule:
+    - cron: "08 4 * * 1-5"  # Her hafta içi 07:08 TSİ (UTC+3)
+  workflow_dispatch:
+
+jobs:
+  send-menu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bağımlılıkları yükle
+        run: pip install -r requirements.txt
+
+      - name: Yemek menüsünü gönder
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GROUP_CHAT_ID: ${{ secrets.GROUP_CHAT_ID }}
+          EXCEL_PATH: BASAK_Yemek_Listesi.xlsx
+          SEND_TOMORROW: "false"
+        run: python menu_to_telegram.py
